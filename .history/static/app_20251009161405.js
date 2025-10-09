@@ -112,8 +112,7 @@ class JewelryAPI {
                 body: JSON.stringify({
                     query: searchParams.query || '',
                     session_id: session_id,
-                    limit: searchParams.limit || 10,
-                    category: searchParams.category || null
+                    limit: searchParams.limit || 10
                 })
             });
 
@@ -992,12 +991,8 @@ class UIController {
             }
 
             if (result && result.success) {
-                console.log('Search successful, calling displayResults with:', result.data.results || result.data);
-                console.log('result.data:', result.data);
-                console.log('result.data.results:', result.data?.results);
                 this.displayResults(result.data.results || result.data);
             } else {
-                console.log('Search failed:', result);
                 this.showStatus(result?.error || 'Search failed', 'error');
             }
         } catch (error) {
@@ -1026,39 +1021,19 @@ class UIController {
         const resultsContainer = document.getElementById('searchResults');
         const resultsSection = document.getElementById('resultsSection');
 
-        console.log('=== DISPLAY RESULTS START ===');
         console.log('displayResults called with:', results);
         console.log('Results container:', resultsContainer);
         console.log('Results section:', resultsSection);
-        console.log('Results type:', typeof results);
-        console.log('Is Array?', Array.isArray(results));
-        console.log('Results length:', results ? results.length : 'N/A');
 
         if (!resultsContainer || !resultsSection) {
             console.error('Results container or section not found');
             return;
         }
 
-        // Ensure results is an array
-        if (!Array.isArray(results)) {
-            console.log('Results is not an array, converting...');
-            if (results && typeof results === 'object') {
-                // If it's an object with a results property, use that
-                results = results.results || results.data || [results];
-            } else {
-                results = [];
-            }
-        }
-
-        console.log('After conversion - Results:', results);
-        console.log('After conversion - Is Array?', Array.isArray(results));
-        console.log('After conversion - Length:', results ? results.length : 'N/A');
-
         if (!results || results.length === 0) {
             console.log('No results to display');
             resultsContainer.innerHTML = '<p style="text-align: center; color: #666;">No results found. Try adjusting your search criteria.</p>';
             resultsSection.style.display = 'block';
-            console.log('=== DISPLAY RESULTS END - NO RESULTS ===');
             return;
         }
 
@@ -1068,12 +1043,8 @@ class UIController {
         const productsGrid = document.createElement('div');
         productsGrid.className = 'products-grid';
 
-        results.forEach((item, index) => {
-            console.log(`Processing item ${index}:`, item);
-            console.log(`Item name: ${item.name}`);
-            console.log(`Item price: ${item.price}`);
-            console.log(`Item category: ${item.category}`);
-            
+        results.forEach(item => {
+            console.log('Creating product card for:', item);
             // Determine the image source - only use real images, never placeholder services
             let imageSrc = '';
             const svgPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRjBGMEYwIi8+Cjx0ZXh0IHg9IjE1MCIgeT0iMTAwIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMTQiIGZpbGw9IiM2NjY2NjYiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZTwvdGV4dD4KPC9zdmc+';
@@ -1128,13 +1099,8 @@ class UIController {
 
         resultsSection.style.display = 'block';
         
-        console.log('Results section is now visible');
-        console.log('Number of product cards created:', productsGrid.children.length);
-        
         // Scroll to results
         resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        
-        console.log('=== DISPLAY RESULTS COMPLETED SUCCESSFULLY ===');
     }
 
     // Utility methods

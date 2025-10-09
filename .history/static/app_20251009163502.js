@@ -112,8 +112,7 @@ class JewelryAPI {
                 body: JSON.stringify({
                     query: searchParams.query || '',
                     session_id: session_id,
-                    limit: searchParams.limit || 10,
-                    category: searchParams.category || null
+                    limit: searchParams.limit || 10
                 })
             });
 

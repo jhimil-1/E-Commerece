@@ -653,7 +653,7 @@
                     <button class="filter-btn" onclick="clearFilters()">🗑️ Clear All</button>
                 </div>
 
-                <button class="btn" id="searchBtn" onclick="window.jewelryUI.performSearch()">Search</button>
+                <button class="btn" onclick="performSearch()">Search</button>
             </div>
         </div>
 
@@ -818,13 +818,13 @@
 
             // Enter key for search inputs
             document.getElementById('textQuery').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') window.jewelryUI.performSearch();
+                if (e.key === 'Enter') performSearch();
             });
             document.getElementById('combinedTextQuery').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') window.jewelryUI.performSearch();
+                if (e.key === 'Enter') performSearch();
             });
             document.getElementById('similarityQuery').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') window.jewelryUI.performSearch();
+                if (e.key === 'Enter') performSearch();
             });
         }
 
@@ -1059,18 +1059,89 @@
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         }
 
-        // Search functionality is now handled by window.jewelryUI.performSearch() in app.js
+        // Search functions
+        async function performSearch() {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsDiv = document.getElementById('searchResults');
+            const resultsCount = document.getElementById('resultsCount');
+
+            resultsSection.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+
+            try {
+                let response;
+                const category = currentFilters.length > 0 ? currentFilters.join(',') : null;
+
+                if (currentSearchMode === 'text') {
+                    const query = document.getElementById('textQuery').value;
+                    if (!query.trim()) {
+                        showMessage('Please enter a search query', 'error');
+                        return;
+                    }
+                    response = await api.searchProducts(query, category);
+                } else if (currentSearchMode === 'image') {
+                    const imageInput = document.getElementById('imageInput');
+                    if (!imageInput.files[0]) {
+                        showMessage('Please upload an image', 'error');
+                        return;
+                    }
+                    response = await api.searchByImage(imageInput.files[0], null, category);
+                } else if (currentSearchMode === 'combined') {
+                    const query = document.getElementById('combinedTextQuery').value;
+                    const imageInput = document.getElementById('combinedImageInput');
+                    if (!query.trim() && !imageInput.files[0]) {
+                        showMessage('Please enter a query or upload an image', 'error');
+                        return;
+                    }
+                    response = await api.searchByImage(imageInput.files[0], query, category);
+                } else if (currentSearchMode === 'similarity') {
+                    const query = document.getElementById('similarityQuery').value;
+                    const imageInput = document.getElementById('similarityImageInput');
+                    const limit = parseInt(document.getElementById('similarityLimit').value);
+                    
+                    if (!query.trim() && !imageInput.files[0]) {
+                        showMessage('Please enter a query or upload an image', 'error');
+                        return;
+                    }
+
+                    // Use the general product similarity endpoint
+                    const formData = new FormData();
+                    formData.append('query', query || '');
+                    formData.append('category', category || '');
+                    formData.append('limit', limit);
+                    if (imageInput.files[0]) {
+                        formData.append('image', imageInput.files[0]);
+                    }
+
+                    const token = localStorage.getItem('authToken');
+                    const response_raw = await fetch('/products/search', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    if (!response_raw.ok) {
+                        throw new Error(`HTTP ${response_raw.status}: ${response_raw.statusText}`);
+                    }
+
+                    response = await response_raw.json();
+                }
+
+                displayResults(response, resultsDiv, resultsCount);
+            } catch (error) {
+                console.error('Search error:', error);
+                resultsDiv.innerHTML = `<div class="error">Search failed: ${error.message}</div>`;
+            }
+        }
 
         function displayResults(response, resultsDiv, resultsCount) {
-            console.log('API Response:', response); // Log the full response
-            
             // Check for products in different possible fields
             const products = response.products || response.results || [];
-            console.log('Extracted products:', products); // Log the extracted products
             
             if (!response || !products || products.length === 0) {
-                console.log('No products found in response');
-                resultsDiv.innerHTML = '<div class="error">No products found matching your search criteria. Please try a different search term or check if any products exist in the system.</div>';
+                resultsDiv.innerHTML = '<div class="error">No products found matching your search criteria.</div>';
                 resultsCount.textContent = '';
                 return;
             }
@@ -1333,7 +1404,12 @@
     </script>
     
     <!-- Live search test script -->
-
+    <script src="test_live_search.js"></script>
     
-    </body>
+    <!-- Manual Test Button -->
+    <script src="manual_test_button.js"></script>
+    
+    <!-- Electronics Search Test -->
+    <script src="test_electronics_search.js"></script>
+</body>
 </html>

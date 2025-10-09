@@ -1,6 +1,6 @@
 // Jewelry Store API Client
 class JewelryAPI {
-    constructor(baseURL = 'http://localhost:8000') {
+    constructor(baseURL = 'http://localhost:8001') {
         this.baseURL = baseURL;
         this.accessToken = null;
         this.userInfo = null;

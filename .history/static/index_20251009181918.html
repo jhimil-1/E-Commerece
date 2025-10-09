@@ -1059,7 +1059,7 @@
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         }
 
-        // Search functionality is now handled by window.jewelryUI.performSearch() in app.js
+        // Search functions - Removed old performSearch function, now using window.jewelryUI.performSearch()
 
         function displayResults(response, resultsDiv, resultsCount) {
             console.log('API Response:', response); // Log the full response

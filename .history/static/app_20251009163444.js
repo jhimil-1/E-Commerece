@@ -112,8 +112,7 @@ class JewelryAPI {
                 body: JSON.stringify({
                     query: searchParams.query || '',
                     session_id: session_id,
-                    limit: searchParams.limit || 10,
-                    category: searchParams.category || null
+                    limit: searchParams.limit || 10
                 })
             });
 
@@ -992,12 +991,8 @@ class UIController {
             }
 
             if (result && result.success) {
-                console.log('Search successful, calling displayResults with:', result.data.results || result.data);
-                console.log('result.data:', result.data);
-                console.log('result.data.results:', result.data?.results);
                 this.displayResults(result.data.results || result.data);
             } else {
-                console.log('Search failed:', result);
                 this.showStatus(result?.error || 'Search failed', 'error');
             }
         } catch (error) {

@@ -1059,7 +1059,205 @@
             document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
         }
 
-        // Search functionality is now handled by window.jewelryUI.performSearch() in app.js
+        // Search functions
+        async function performSearch() {
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsDiv = document.getElementById('searchResults');
+            const resultsCount = document.getElementById('resultsCount');
+
+            resultsSection.style.display = 'block';
+            resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+            
+            // Log current search mode and inputs
+            console.log('Current search mode:', currentSearchMode);
+            if (currentSearchMode === 'text') {
+                console.log('Search query:', document.getElementById('textQuery').value);
+            }
+
+            try {
+                let response;
+                const category = currentFilters.length > 0 ? currentFilters.join(',') : null;
+
+                if (currentSearchMode === 'text') {
+                    const query = document.getElementById('textQuery').value;
+                    if (!query.trim()) {
+                        showMessage('Please enter a search query', 'error');
+                        return;
+                    }
+                    const token = localStorage.getItem('authToken');
+                    
+                    // Create URLSearchParams for form data
+                    const params = new URLSearchParams();
+                    params.append('query', query);
+                    if (category) params.append('category', category);
+                    params.append('limit', '10');
+                    
+                    console.log('Sending search request with:', {
+                        query,
+                        category,
+                        hasToken: !!token
+                    });
+                    
+                    try {
+                        const response_raw = await fetch('/chat/query', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'Authorization': token ? `Bearer ${token}` : ''
+                            },
+                            body: JSON.stringify({
+                                query: query,
+                                session_id: 'current-session'
+                            })
+                        });
+                        
+                        console.log('Response status:', response_raw.status);
+                        
+                        if (!response_raw.ok) {
+                            const errorText = await response_raw.text();
+                            let errorData;
+                            try {
+                                errorData = JSON.parse(errorText);
+                            } catch (e) {
+                                errorData = { detail: errorText };
+                            }
+                            console.error('Search error:', {
+                                status: response_raw.status,
+                                statusText: response_raw.statusText,
+                                errorData
+                            });
+                            throw new Error(errorData.detail || `HTTP ${response_raw.status}: ${response_raw.statusText}`);
+                        }
+                        
+                        response = await response_raw.json();
+                        console.log('Search response:', response);
+                    } catch (error) {
+                        console.error('Fetch error:', error);
+                        throw error;
+                    }
+                } else if (currentSearchMode === 'image') {
+                    const imageInput = document.getElementById('imageInput');
+                    if (!imageInput.files[0]) {
+                        showMessage('Please upload an image', 'error');
+                        return;
+                    }
+                    const token = localStorage.getItem('authToken');
+                    const formData = new FormData();
+                    formData.append('image', imageInput.files[0]);
+                    formData.append('session_id', 'current-session');
+                    if (category) {
+                        formData.append('category', category);
+                    }
+                    
+                    const response_raw = await fetch('/products/search', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    if (!response_raw.ok) {
+                        throw new Error(`HTTP ${response_raw.status}: ${response_raw.statusText}`);
+                    }
+
+                    response = await response_raw.json();
+                } else if (currentSearchMode === 'combined') {
+                    const query = document.getElementById('combinedTextQuery').value;
+                    const imageInput = document.getElementById('combinedImageInput');
+                    if (!query.trim() && !imageInput.files[0]) {
+                        showMessage('Please enter a query or upload an image', 'error');
+                        return;
+                    }
+                    const token = localStorage.getItem('authToken');
+                    const formData = new FormData();
+                    if (imageInput.files[0]) {
+                        formData.append('image', imageInput.files[0]);
+                    }
+                    if (query.trim()) {
+                        formData.append('query', query);
+                    }
+                    formData.append('session_id', 'current-session');
+                    if (category) {
+                        formData.append('category', category);
+                    }
+                    
+                    const response_raw = await fetch('/products/search', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    if (!response_raw.ok) {
+                        throw new Error(`HTTP ${response_raw.status}: ${response_raw.statusText}`);
+                    }
+
+                    response = await response_raw.json();
+                } else if (currentSearchMode === 'similarity') {
+                    const query = document.getElementById('similarityQuery').value;
+                    const imageInput = document.getElementById('similarityImageInput');
+                    const limit = parseInt(document.getElementById('similarityLimit').value);
+                    
+                    if (!query.trim() && !imageInput.files[0]) {
+                        showMessage('Please enter a query or upload an image', 'error');
+                        return;
+                    }
+
+                    // Use the general product similarity endpoint
+                    const formData = new FormData();
+                    if (query.trim()) {
+                        formData.append('query', query);
+                    }
+                    if (category) {
+                        formData.append('category', category);
+                    }
+                    formData.append('limit', limit);
+                    formData.append('session_id', 'current-session');
+                    if (imageInput.files[0]) {
+                        formData.append('image', imageInput.files[0]);
+                    }
+
+                    const token = localStorage.getItem('authToken');
+                    const response_raw = await fetch('/products/search', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    if (!response_raw.ok) {
+                        const errorData = await response_raw.json().catch(() => ({}));
+                        console.error('Error details:', errorData);
+                        throw new Error(errorData.detail || `HTTP ${response_raw.status}: ${response_raw.statusText}`);
+                    }
+
+                    response = await response_raw.json();
+                    console.log('Search response:', response);
+                }
+
+                console.log('Raw API response:', response);
+                if (!response) {
+                    throw new Error('Empty response from server');
+                }
+                displayResults(response, resultsDiv, resultsCount);
+            } catch (error) {
+                console.error('Search error:', error);
+                console.error('Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack
+                });
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <p>Search failed: ${error.message || 'Unknown error'}</p>
+                        <p>Please check the console for more details.</p>
+                    </div>`;
+            }
+        }
 
         function displayResults(response, resultsDiv, resultsCount) {
             console.log('API Response:', response); // Log the full response
