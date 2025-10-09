@@ -8,16 +8,20 @@ from dotenv import load_dotenv
 load_dotenv(override=True)  # Add override=True to ensure it reloads
 print("Environment variables loaded:", bool(os.getenv("GOOGLE_API_KEY")))
 import json 
+import uuid
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Depends, status, File, UploadFile, Form, Request
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List, Optional
-import logging
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timedelta
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import logging
+import uvicorn
+from database import MongoDB
+from product_handler import ProductHandler
+from qdrant_utils import QdrantManager
+from contextlib import asynccontextmanager
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import uvicorn
 
@@ -65,8 +69,34 @@ class ChatQuery(BaseModel):
     session_id: str
 
 
-# Initialize FastAPI app
-app = FastAPI()
+# Initialize FastAPI app with lifespan management
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize database connections
+    try:
+        # Initialize MongoDB connection
+        MongoDB.connect()
+        logger.info("Successfully connected to MongoDB")
+        
+        # Initialize Qdrant connection
+        qdrant = QdrantManager()
+        qdrant.create_collection_if_not_exists()
+        logger.info("Successfully connected to Qdrant")
+        
+        yield
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize database connections: {str(e)}")
+        raise
+    finally:
+        # Shutdown: Close database connections
+        try:
+            MongoDB.close()
+            logger.info("Closed MongoDB connection")
+        except Exception as e:
+            logger.error(f"Error closing MongoDB connection: {str(e)}")
+
+app = FastAPI(lifespan=lifespan)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -91,7 +121,7 @@ async def log_requests(request: Request, call_next):
 # Root endpoint
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the Jewelry Search API. Visit /docs for API documentation."}
+    return {"message": "Welcome to the E-commerce Product Search API. Visit /docs for API documentation."}
 
 # Health check endpoint
 @app.get("/health")
@@ -120,12 +150,18 @@ async def signup(user_data: UserSignup):
 @app.post("/auth/login", response_model=dict)
 async def login(user_credentials: UserLogin):
     try:
-        return await login_user(
+        result = await login_user(
             username=user_credentials.username,
             password=user_credentials.password
         )
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials"
+            )
+        return result
     except HTTPException as he:
-        raise he
+        raise
     except Exception as e:
         logger.error(f"Login error: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -140,20 +176,65 @@ async def create_session_endpoint(current_user: dict = Depends(get_current_user)
     Create a new chat session for the authenticated user.
     
     Returns:
-        dict: Contains the new session ID and success message
+        dict: Contains the session ID and status message
         
     Example Response:
         {
             "session_id": "507f1f77bcf86cd799439011",
-            "message": "New chat session created"
+            "message": "Using existing active session"
         }
     """
     try:
-        session_id = await create_new_session(user_id=current_user["username"])
-        return {
-            "session_id": session_id,
-            "message": "New chat session created"
-        }
+        # Ensure current_user is valid
+        if not current_user or 'username' not in current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or missing user information"
+            )
+            
+        # Get MongoDB collection
+        try:
+            db = MongoDB.get_db()
+            # Test the connection by checking server info
+            db.command('ping')
+            sessions_collection = db["sessions"]
+        except Exception as e:
+            logger.error(f"Failed to connect to MongoDB: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Database connection error: {str(e)}"
+            )
+        
+        # Check for existing active session (synchronous operation)
+        existing_session = sessions_collection.find_one({
+            "user_id": current_user["username"],
+            "last_activity": {"$gt": datetime.utcnow() - timedelta(hours=1)}  # Active within last hour
+        }, sort=[("last_activity", -1)])
+
+        if existing_session:
+            # Update last activity for existing session
+            session_id = existing_session["session_id"]
+            sessions_collection.update_one(
+                {"session_id": session_id},
+                {"$set": {"last_activity": datetime.utcnow()}}
+            )
+            message = "Using existing active session"
+        else:
+            # Create new session
+            session_id = str(uuid.uuid4())
+            new_session = {
+                "session_id": session_id,
+                "user_id": current_user["username"],
+                "created_at": datetime.utcnow(),
+                "last_activity": datetime.utcnow()
+            }
+            sessions_collection.insert_one(new_session)
+            message = "New session created"
+
+        return {"session_id": session_id, "message": message}
+    
+    except HTTPException as he:
+        raise he
     except Exception as e:
         logger.error(f"Session creation error: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -184,9 +265,20 @@ async def upload_products(
         try:
             # Parse JSON content
             products = json.loads(contents)
+            
+            # Check if it's wrapped in an object with "products" key (frontend format)
+            if isinstance(products, dict) and "products" in products:
+                logger.warning("Received wrapped product format, extracting array")
+                products = products["products"]
+            
+            # Ensure it's a list
+            if not isinstance(products, list):
+                raise ValueError(f"Expected JSON array, got {type(products).__name__}")
+            
             # Validate each product matches our schema
             for product in products:
                 ProductCreate(**product)
+                
         except ValueError as e:  # Handles both JSONDecodeError and validation errors
             raise HTTPException(
                 status_code=400,
@@ -196,7 +288,7 @@ async def upload_products(
         # Process the products
         result = await product_handler.process_product_upload(
             products=products,
-            user_id=current_user["username"]
+            user_id=current_user.get("user_id", current_user.get("username"))
         )
         
         return {
@@ -225,18 +317,35 @@ async def chat_query(
     - **session_id**: Active session identifier
     """
     try:
+        if not chat_data.query or not chat_data.query.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Query cannot be empty"
+            )
+
+        # Process the query using the chatbot manager
         response = await chatbot_manager.handle_text_query(
             session_id=chat_data.session_id,
             query=chat_data.query
         )
+
+        # Ensure the response has the expected format
+        if not hasattr(response, 'products'):
+            response.products = []
+
         return response
+
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.error(f"Chat query error: {str(e)}", exc_info=True)
+        logger.error(f"Validation error in chat_query: {str(e)}")
         raise HTTPException(
-            status_code=500,
-            detail="Error processing chat query"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error in chat_query: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while processing your request"
         )
 
 @app.post("/chat/image-query", response_model=ChatResponse)
@@ -271,12 +380,13 @@ async def image_search(
         logger.info(f"Processing image search - Size: {len(image_bytes)} bytes, Category: {category}")
         
         # Process the image query using product_handler with lower threshold
-        search_results = await product_handler.search_jewelry_by_image_and_category(
-            query_text=query,
-            query_image=image_bytes,
+        search_results = await product_handler.search_products(
+            query=query,
+            image_bytes=image_bytes,
             category=category,
             limit=10,
-            min_score=0.1  # Lower threshold for more results
+            min_score=0.1,  # Lower threshold for more results
+            user_id=current_user.get("user_id", current_user.get("username"))
         )
         
         # Log search results
@@ -345,9 +455,9 @@ async def get_chat_history(
             detail="Error retrieving chat history"
         )
 
-# Jewelry similarity search endpoint
-@app.post("/jewelry/search", response_model=dict)
-async def jewelry_similarity_search(
+# General product similarity search endpoint
+@app.post("/products/search", response_model=dict)
+async def product_similarity_search(
     query: Optional[str] = Form(None),
     category: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
@@ -355,11 +465,11 @@ async def jewelry_similarity_search(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Search for jewelry using CLIP-based similarity on category and image.
+    Search for products using CLIP-based similarity on category and image.
     
-    - **query**: (Optional) Text query describing the jewelry
-    - **category**: (Optional) Filter by jewelry category (e.g., "rings", "necklaces", "earrings")
-    - **image**: (Optional) Upload an image of jewelry to find similar items
+    - **query**: (Optional) Text query describing the product
+    - **category**: (Optional) Filter by product category (e.g., "electronics", "clothing", "home")
+    - **image**: (Optional) Upload an image of product to find similar items
     - **limit**: Maximum number of results to return
     """
     try:
@@ -380,21 +490,17 @@ async def jewelry_similarity_search(
                     detail=f"Invalid image type. Allowed: {', '.join(allowed_types)}"
                 )
             
-            # Read and convert image to base64
-            image_bytes = await image.read()
-            import base64
-            image_data = base64.b64encode(image_bytes).decode('utf-8')
-            
-            # Add data URL prefix for CLIP processing
-            image_data = f"data:{image.content_type};base64,{image_data}"
+            # Read image content as raw bytes
+            image_data = await image.read()
         
-        # Perform jewelry similarity search
-        results = await product_handler.search_jewelry_by_image_and_category(
-            query_text=query,
-            query_image=image_data,
+        # Perform product similarity search
+        results = await product_handler.search_products(
+            query=query,
+            image_bytes=image_data,
             category=category,
             limit=limit,
-            min_score=0.3
+            min_score=0.3,
+            user_id=current_user.get("user_id", current_user.get("username"))
         )
         
         # Return the results directly (already in correct format)
@@ -410,9 +516,4 @@ async def jewelry_similarity_search(
         )
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

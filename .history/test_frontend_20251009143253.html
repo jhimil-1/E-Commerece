@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .result { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 3px; }
+        .error { background: #ffe0e0; color: #d00; }
+        .success { background: #e0ffe0; color: #080; }
+        button { padding: 10px 15px; margin: 5px; cursor: pointer; }
+        input { padding: 8px; margin: 5px; width: 200px; }
+        #console { background: #000; color: #0f0; padding: 10px; font-family: monospace; height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>Frontend API Test</h1>
+    
+    <div class="test-section">
+        <h2>Test User Authentication</h2>
+        <input type="text" id="username" placeholder="Username" value="test_user">
+        <input type="email" id="email" placeholder="Email" value="test@example.com">
+        <input type="password" id="password" placeholder="Password" value="TestPassword123!">
+        <br>
+        <button onclick="testSignup()">Test Signup</button>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="testHealth()">Test Health</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Search</h2>
+        <input type="text" id="searchQuery" placeholder="Search query" value="smartphone">
+        <button onclick="testSearch()">Test Search</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Console Output</h2>
+        <div id="console"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let accessToken = '';
+        let sessionId = '';
+        
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? '#ff6666' : type === 'success' ? '#66ff66' : '#66ffff';
+            console.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            console.scrollTop = console.scrollHeight;
+        }
+        
+        function showResult(title, data, isError = false) {
+            const results = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `result ${isError ? 'error' : 'success'}`;
+            resultDiv.innerHTML = `<strong>${title}:</strong><br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            results.appendChild(resultDiv);
+        }
+        
+        async function testHealth() {
+            try {
+                log('Testing health endpoint...');
+                const response = await fetch('/health');
+                const data = await response.json();
+                log(`Health check: ${response.status}`, response.ok ? 'success' : 'error');
+                showResult('Health Check', data);
+            } catch (error) {
+                log(`Health check failed: ${error.message}`, 'error');
+                showResult('Health Check Error', error.message, true);
+            }
+        }
+        
+        async function testSignup() {
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                log(`Testing signup for ${username}...`);
+                const response = await fetch('/auth/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+                const data = await response.json();
+                log(`Signup response: ${response.status}`, response.ok ? 'success' : 'error');
+                showResult('Signup Response', data);
+            } catch (error) {
+                log(`Signup failed: ${error.message}`, 'error');
+                showResult('Signup Error', error.message, true);
+            }
+        }
+        
+        async function testLogin() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                log(`Testing login for ${username}...`);
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                log(`Login response: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    accessToken = data.access_token;
+                    log(`Got access token: ${accessToken.substring(0, 20)}...`, 'success');
+                    // Test session creation
+                    await testCreateSession();
+                }
+                
+                showResult('Login Response', data);
+            } catch (error) {
+                log(`Login failed: ${error.message}`, 'error');
+                showResult('Login Error', error.message, true);
+            }
+        }
+        
+        async function testCreateSession() {
+            if (!accessToken) {
+                log('No access token available', 'error');
+                return;
+            }
+            
+            try {
+                log('Creating chat session...');
+                const response = await fetch('/chat/sessions', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const data = await response.json();
+                log(`Session creation: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    sessionId = data.session_id;
+                    log(`Got session ID: ${sessionId}`, 'success');
+                }
+                
+                showResult('Session Creation', data);
+            } catch (error) {
+                log(`Session creation failed: ${error.message}`, 'error');
+                showResult('Session Error', error.message, true);
+            }
+        }
+        
+        async function testSearch() {
+            if (!accessToken || !sessionId) {
+                log('No access token or session ID available', 'error');
+                await testLogin();
+                return;
+            }
+            
+            const query = document.getElementById('searchQuery').value;
+            
+            try {
+                log(`Testing search for "${query}"...`);
+                log(`Using session ID: ${sessionId}`);
+                log(`Using token: ${accessToken.substring(0, 20)}...`);
+                
+                const response = await fetch('/chat/query', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ 
+                        query: query,
+                        session_id: sessionId
+                    })
+                });
+                
+                const data = await response.json();
+                log(`Search response: ${response.status}`, response.ok ? 'success' : 'error');
+                
+                if (response.ok) {
+                    log(`Found ${data.products ? data.products.length : 0} products`, 'success');
+                    if (data.products && data.products.length > 0) {
+                        log(`First product: ${data.products[0].name}`, 'success');
+                    }
+                }
+                
+                showResult('Search Response', data);
+            } catch (error) {
+                log(`Search failed: ${error.message}`, 'error');
+                showResult('Search Error', error.message, true);
+            }
+        }
+        
+        // Auto-test health on load
+        window.onload = function() {
+            log('Frontend test loaded', 'success');
+            testHealth();
+        };
+    </script>
+</body>
+</html>

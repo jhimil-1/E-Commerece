@@ -1,0 +1,39 @@
+{
+  "products": [
+    {
+      "name": "Wireless Bluetooth Headphones",
+      "category": "electronics",
+      "description": "High-quality wireless headphones with noise cancellation and 30-hour battery life. Perfect for music lovers and professionals.",
+      "price": 149.99,
+      "image_url": "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400"
+    },
+    {
+      "name": "Smart Fitness Watch",
+      "category": "electronics",
+      "description": "Advanced fitness tracker with heart rate monitoring, GPS, and 7-day battery life. Water resistant design.",
+      "price": 199.99,
+      "image_url": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400"
+    },
+    {
+      "name": "Organic Cotton T-Shirt",
+      "category": "clothing",
+      "description": "Comfortable and sustainable organic cotton t-shirt. Available in multiple colors and sizes.",
+      "price": 29.99,
+      "image_url": "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400"
+    },
+    {
+      "name": "Ergonomic Office Chair",
+      "category": "home",
+      "description": "Premium ergonomic office chair with lumbar support and adjustable height. Perfect for long work sessions.",
+      "price": 299.99,
+      "image_url": "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400"
+    },
+    {
+      "name": "Yoga Mat Premium",
+      "category": "sports",
+      "description": "Non-slip premium yoga mat with extra cushioning. Eco-friendly materials, perfect for all yoga levels.",
+      "price": 49.99,
+      "image_url": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400"
+    }
+  ]
+}
