@@ -13,8 +13,9 @@ if login_response.status_code == 200:
     token_data = login_response.json()
     token = token_data['access_token']
     print(f"Fresh token: {token}")
-    
-    # Test chat query endpoint
+else:
+    print(f"Login failed: {login_response.status_code} - {login_response.text}")
+    exit(1)# Test chat query endpoint
     print("\nCreating chat session...")
     session_response = requests.post(
         'http://localhost:8000/chat/sessions',

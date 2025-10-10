@@ -339,8 +339,15 @@ class QdrantManager:
                         search_results = []  # Return empty results instead of searching without filters
             except Exception as e:
                 logger.error(f"Error during search: {str(e)}")
-                # Return empty results instead of falling back to unfiltered search
-                search_results = []
+                # Fall back to basic search if there's an error with filters
+                search_results = self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_embedding,
+                    limit=limit,
+                    score_threshold=min_score * 0.7,  # Lower threshold for fallback search
+                    with_payload=True,
+                    with_vectors=False
+                )
             
             # If no results and category filter is applied, try case-insensitive variations
             if not search_results and category_filter:

@@ -224,12 +224,9 @@ async def create_session_endpoint(current_user: dict = Depends(get_current_user)
                 detail=f"Database connection error: {str(e)}"
             )
         
-        # Get the actual user_id for consistent filtering
-        actual_user_id = current_user.get("user_id", current_user["username"])
-        
         # Check for existing active session (synchronous operation)
         existing_session = sessions_collection.find_one({
-            "user_id": actual_user_id,
+            "user_id": current_user["username"],
             "last_activity": {"$gt": datetime.utcnow() - timedelta(hours=1)}  # Active within last hour
         }, sort=[("last_activity", -1)])
 
@@ -246,7 +243,7 @@ async def create_session_endpoint(current_user: dict = Depends(get_current_user)
             session_id = str(uuid.uuid4())
             new_session = {
                 "session_id": session_id,
-                "user_id": actual_user_id,
+                "user_id": current_user["username"],
                 "created_at": datetime.utcnow(),
                 "last_activity": datetime.utcnow()
             }

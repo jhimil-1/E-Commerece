@@ -3,11 +3,7 @@ import json
 
 # Login to get fresh token
 login_data = {'username': 'test_user_02ff81cd', 'password': 'test123'}
-print(f"Attempting login with: {login_data}")
 login_response = requests.post('http://localhost:8000/auth/login', json=login_data)
-
-print(f"Login response status: {login_response.status_code}")
-print(f"Login response: {login_response.text}")
 
 if login_response.status_code == 200:
     token_data = login_response.json()

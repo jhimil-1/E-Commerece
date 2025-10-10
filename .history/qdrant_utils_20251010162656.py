@@ -273,25 +273,22 @@ class QdrantManager:
             
             # Build final filter combining must and should conditions
             if filter_conditions or category_should_conditions:
-                all_must_conditions = []
+                all_must_conditions = filter_conditions.copy()
                 
-                # Add user_id filter conditions if they exist
-                if filter_conditions:
-                    all_must_conditions.extend(filter_conditions)
-                
-                # Add category filter conditions if they exist
+                # For category filter, we need to use a should condition within the must
                 if category_should_conditions:
-                    # For category, we need to use should conditions within a must clause
-                    # to match any of the category variations
-                    category_values = [condition.match.value for condition in category_should_conditions]
-                    all_must_conditions.append(
-                        models.FieldCondition(
-                            key="category",
-                            match=models.MatchAny(any=category_values)
-                        )
+                    # Create a should condition for category variations
+                    category_condition = models.Filter(
+                        should=category_should_conditions,
+                        min_should_match=1
                     )
+                    # Add this as a must condition (this is the correct way)
+                    all_must_conditions.append(category_condition)
                 
-                query_filter = models.Filter(must=all_must_conditions)
+                if all_must_conditions:
+                    query_filter = models.Filter(must=all_must_conditions)
+                else:
+                    query_filter = None
             else:
                 query_filter = None
             
@@ -333,14 +330,28 @@ class QdrantManager:
                             with_vectors=False
                         )
                     
-                    # If still no results, return empty results instead of falling back to no filters
+                    # If still no results, try without any filters
                     if not search_results:
-                        logger.info("No results found with current filters")
-                        search_results = []  # Return empty results instead of searching without filters
+                        logger.info("No results with user filter, trying without any filters")
+                        search_results = self.client.search(
+                            collection_name=self.collection_name,
+                            query_vector=query_embedding,
+                            limit=limit,
+                            score_threshold=min_score * 0.7,  # Lower threshold for fallback search
+                            with_payload=True,
+                            with_vectors=False
+                        )
             except Exception as e:
                 logger.error(f"Error during search: {str(e)}")
-                # Return empty results instead of falling back to unfiltered search
-                search_results = []
+                # Fall back to basic search if there's an error with filters
+                search_results = self.client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_embedding,
+                    limit=limit,
+                    score_threshold=min_score * 0.7,  # Lower threshold for fallback search
+                    with_payload=True,
+                    with_vectors=False
+                )
             
             # If no results and category filter is applied, try case-insensitive variations
             if not search_results and category_filter:

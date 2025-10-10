@@ -255,8 +255,7 @@ class ChatbotManager:
                 products = qdrant_manager.search_similar_products(
                     query_embedding=query_embedding,
                     user_id=user_id,
-                    category_filter=category,
-                    limit=limit
+                    limit=5
                 )
                 logger.info(f"Found {len(products)} similar products from Qdrant")
                 
