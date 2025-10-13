@@ -44,6 +44,7 @@ class MongoDB:
                     'tls': True,
                     'tlsAllowInvalidCertificates': False,
                     'tlsAllowInvalidHostnames': False,
+                    'ssl_cert_reqs': ssl.CERT_REQUIRED,
                 }
                 
                 logger.info(f"Connecting to cloud MongoDB with enhanced SSL settings...")
@@ -72,6 +73,7 @@ class MongoDB:
                         'tls': True,
                         'tlsAllowInvalidCertificates': True,
                         'tlsAllowInvalidHostnames': True,
+                        'ssl_cert_reqs': ssl.CERT_NONE,
                     }
                     
                     cls._client = MongoClient(MONGODB_URL, **fallback_options)

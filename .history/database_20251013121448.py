@@ -44,6 +44,7 @@ class MongoDB:
                     'tls': True,
                     'tlsAllowInvalidCertificates': False,
                     'tlsAllowInvalidHostnames': False,
+                    'ssl_cert_reqs': ssl.CERT_REQUIRED,
                 }
                 
                 logger.info(f"Connecting to cloud MongoDB with enhanced SSL settings...")
@@ -72,6 +73,7 @@ class MongoDB:
                         'tls': True,
                         'tlsAllowInvalidCertificates': True,
                         'tlsAllowInvalidHostnames': True,
+                        'ssl_cert_reqs': ssl.CERT_NONE,
                     }
                     
                     cls._client = MongoClient(MONGODB_URL, **fallback_options)
@@ -83,17 +85,85 @@ class MongoDB:
                     logger.error(f"❌ All cloud MongoDB connection attempts failed: {final_error}")
                     logger.warning("⚠️  Trying local MongoDB as final fallback...")
                     try:
-                        # Final fallback to local MongoDB
-                        logger.info("Trying local MongoDB connection...")
-                        cls._client = MongoClient(MONGODB_URL_LOCAL, serverSelectionTimeoutMS=5000)
+                    # Fallback to cloud connection with improved SSL/TLS settings
+                    from config import MONGODB_URL, MONGODB_DB_NAME
+                    
+                    # Parse connection string to check for SSL parameters
+                    connection_string = MONGODB_URL
+                    
+                    # Enhanced connection options for MongoDB Atlas
+                    connection_options = {
+                        'serverSelectionTimeoutMS': 15000,
+                        'connectTimeoutMS': 15000,
+                        'socketTimeoutMS': 15000,
+                        'retryWrites': True,
+                        'w': 'majority',
+                        'maxPoolSize': 10,
+                        'minPoolSize': 1,
+                        'maxIdleTimeMS': 30000,
+                        # SSL/TLS settings
+                        'tls': True,
+                        'tlsAllowInvalidCertificates': False,  # Changed to False for security
+                        'tlsAllowInvalidHostnames': False,       # Changed to False for security
+                        'ssl_cert_reqs': ssl.CERT_REQUIRED,    # Require valid SSL certificates
+                    }
+                    
+                    # If connection string already has SSL parameters, adjust accordingly
+                    if 'tls=true' in connection_string.lower() or 'ssl=true' in connection_string.lower():
+                        logger.info("SSL/TLS detected in connection string, using enhanced security settings")
+                        # Use system SSL certificates
+                        connection_options['ssl_ca_certs'] = None  # Use system CA bundle
+                        connection_options['ssl_certfile'] = None
+                        connection_options['ssl_keyfile'] = None
+                    
+                    logger.info(f"Connecting to cloud MongoDB with enhanced SSL settings...")
+                    cls._client = MongoClient(connection_string, **connection_options)
+                    
+                    # Test connection
+                    logger.info("Testing cloud MongoDB connection...")
+                    cls._client.admin.command('ping')
+                    cls._db = cls._client[MONGODB_DB_NAME]
+                    logger.info("✅ Connected to cloud MongoDB successfully")
+                    
+                except (ConnectionFailure, ServerSelectionTimeoutError, ConfigurationError) as cloud_error:
+                    logger.error(f"❌ Cloud MongoDB connection failed: {cloud_error}")
+                    logger.error(f"Error type: {type(cloud_error).__name__}")
+                    
+                    # Try one more time with relaxed SSL settings (fallback)
+                    logger.info("Trying cloud MongoDB with relaxed SSL settings...")
+                    try:
+                        fallback_options = {
+                            'serverSelectionTimeoutMS': 10000,
+                            'connectTimeoutMS': 10000,
+                            'socketTimeoutMS': 10000,
+                            'retryWrites': True,
+                            'w': 'majority',
+                            # Relaxed SSL settings for compatibility
+                            'tls': True,
+                            'tlsAllowInvalidCertificates': True,
+                            'tlsAllowInvalidHostnames': True,
+                            'ssl_cert_reqs': ssl.CERT_NONE,
+                        }
+                        
+                        cls._client = MongoClient(connection_string, **fallback_options)
                         cls._client.admin.command('ping')
-                        cls._db = cls._client[MONGODB_DB_NAME_LOCAL]
-                        logger.info("✅ Connected to local MongoDB successfully")
-                    except Exception as local_error:
-                        logger.error(f"❌ Local MongoDB connection also failed: {local_error}")
-                        logger.error("❌ All MongoDB connection attempts failed")
+                        cls._db = cls._client[MONGODB_DB_NAME]
+                        logger.info("✅ Connected to cloud MongoDB with fallback SSL settings")
+                        
+                    except Exception as final_error:
+                        logger.error(f"❌ All MongoDB connection attempts failed: {final_error}")
+                        logger.warning("⚠️  MongoDB will not be available. Application will run with limited features.")
+                        # Set to None to indicate no database connection
                         cls._client = None
                         cls._db = None
+                        
+                except Exception as unexpected_error:
+                    logger.error(f"❌ Unexpected error connecting to MongoDB: {unexpected_error}")
+                    logger.error(f"Error type: {type(unexpected_error).__name__}")
+                    import traceback
+                    traceback.print_exc()
+                    cls._client = None
+                    cls._db = None
     
     @classmethod
     def get_db(cls):
