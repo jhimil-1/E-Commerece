@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+
+import sys
+sys.path.append('.')
+
+from chatbot import ChatbotManager
+from database import MongoDB
+import json
+
+def test_chatbot_search():
+    """Test chatbot search functionality to understand why it's failing"""
+    
+    # Initialize chatbot manager
+    chatbot_manager = ChatbotManager()
+    
+    # Create a test session
+    session_id = "test_session_123"
+    user_id = "test_user_123"
+    
+    # Test queries that are failing
+    test_queries = [
+        "show me watch",
+        "smartwatches", 
+        "show me clothes",
+        "show me jewellery"
+    ]
+    
+    print("Testing chatbot search functionality...")
+    print("=" * 60)
+    
+    for query in test_queries:
+        print(f"\nTesting query: '{query}'")
+        print("-" * 40)
+        
+        try:
+            # Process the query
+            response = chatbot_manager.handle_text_query(query, session_id, user_id)
+            print(f"Response: {response}")
+            
+            # Check if session was created and get chat history
+            history = chatbot_manager.get_session_history(session_id)
+            if history and 'messages' in history:
+                print(f"Chat history has {len(history['messages'])} messages")
+                
+        except Exception as e:
+            print(f"ERROR: {str(e)}")
+            import traceback
+            traceback.print_exc()
+    
+    print("\n" + "=" * 60)
+    print("Test completed!")
+
+if __name__ == "__main__":
+    test_chatbot_search()

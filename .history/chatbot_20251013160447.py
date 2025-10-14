@@ -13,7 +13,6 @@ from gemini_utils import gemini_manager
 from clip_utils import clip_manager
 from models import ChatResponse, ChatHistoryItem, ChatHistory
 from product_handler import ProductHandler
-from enhanced_product_handler import EnhancedProductHandler
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,6 @@ class ChatbotManager:
         self.sessions_collection = MongoDB.get_collection("sessions")
         self.products_collection = MongoDB.get_collection("products")
         self.product_handler = ProductHandler()
-        self.enhanced_handler = EnhancedProductHandler(self.product_handler)
     
     def _get_chat_history(self, session_id: str) -> List[Dict[str, str]]:
         """
@@ -255,82 +253,32 @@ class ChatbotManager:
                 logger.error(f"Error generating query embedding: {str(e)}")
                 raise ValueError("Failed to process your query. Please try again.")
             
-            # Check if this is a "similar product" query and extract context from chat history
-            search_query = query
-            search_context = None
-            
-            # Detect similar product requests
-            similar_product_keywords = ['similar product', 'similar products', 'show similar', 'recommend similar', 'like this', 'anything similar']
-            if any(keyword in query.lower() for keyword in similar_product_keywords):
-                logger.info("Detected similar product query, extracting context from chat history...")
-                chat_history = self._get_chat_history(session_id)
-                
-                # Look for product mentions in recent chat history
-                if chat_history:
-                    # Search backwards through chat history for product context
-                    for i in range(len(chat_history) - 1, -1, -1):
-                        message = chat_history[i]
-                        if message.get('role') == 'assistant' and message.get('products'):
-                            # Found a previous response with products
-                            if message['products']:
-                                search_context = message['products'][0]  # Use the first product as context
-                                logger.info(f"Found product context from chat history: {search_context.get('name', 'Unknown product')}")
-                                # Use the product name as the search query instead of "similar products"
-                                search_query = search_context.get('name', query)
-                                break
-                        elif message.get('role') == 'user' and message.get('content'):
-                            # Look for product mentions in user messages
-                            user_content = message['content'].lower()
-                            # Common product-related keywords
-                            product_keywords = ['phone', 'smartphone', 'jewelry', 'ring', 'necklace', 'watch', 'laptop', 'tablet']
-                            for keyword in product_keywords:
-                                if keyword in user_content:
-                                    search_query = keyword
-                                    logger.info(f"Found product keyword '{keyword}' in user history, using as search context")
-                                    break
-                            if search_query != query:
-                                break
-            
             # Search for similar products
-            logger.debug(f"Searching for products with query: '{search_query}' (original: '{query}')")
+            logger.debug("Searching for similar products...")
             try:
-                # Use enhanced product handler for better relevance
-                logger.info(f"Calling enhanced_handler.search_products_enhanced with query='{search_query}', user_id='{user_id}', category='{category}', limit={limit}")
-                search_result = await self.enhanced_handler.search_products_enhanced(
-                    query=search_query,
+                # Use product handler for proper category filtering
+                logger.info(f"Calling product_handler.search_products with query='{query}', user_id='{user_id}', category='{category}', limit={limit}")
+                search_result = await self.product_handler.search_products(
+                    query=query,
                     user_id=user_id,
                     category=category,
                     limit=limit
                 )
                 
-                logger.info(f"Enhanced handler returned: {search_result}")
+                logger.info(f"Product handler returned: {search_result}")
                 if search_result['status'] == 'success':
                     products = search_result['results']
-                    logger.info(f"Found {len(products)} enhanced products")
+                    logger.info(f"Found {len(products)} similar products from product handler")
                 else:
-                    logger.error(f"Enhanced search failed: {search_result['message']}")
-                    # Fallback to original handler
-                    logger.info("Falling back to original product handler")
-                    fallback_result = await self.product_handler.search_products(
-                        query=search_query,
-                        user_id=user_id,
-                        category=category,
-                        limit=limit
-                    )
-                    if fallback_result['status'] == 'success':
-                        products = fallback_result['results']
-                        logger.info(f"Found {len(products)} fallback products")
-                    else:
-                        products = []
+                    logger.error(f"Product search failed: {search_result['message']}")
+                    products = []
                 
             except Exception as e:
                 logger.error(f"Error searching products: {str(e)}")
                 # Fallback to direct Qdrant search if product handler fails
                 try:
-                    # Generate embedding for the search query (which might be different from original query)
-                    search_embedding = clip_manager.get_text_embedding(search_query)
                     products = qdrant_manager.search_similar_products(
-                        query_embedding=search_embedding,
+                        query_embedding=query_embedding,
                         user_id=user_id,
                         category_filter=category,
                         limit=limit
