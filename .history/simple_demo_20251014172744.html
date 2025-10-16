@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jewelry Search Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .search-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .search-input {
+            width: 70%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        .search-btn {
+            padding: 12px 24px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .search-btn:hover {
+            background: #0056b3;
+        }
+        .results-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .product-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            display: flex;
+            align-items: center;
+        }
+        .product-image {
+            width: 100px;
+            height: 100px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            margin-right: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+            font-size: 12px;
+        }
+        .product-info h3 {
+            margin: 0 0 5px 0;
+            color: #333;
+        }
+        .product-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .product-price {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Jewelry Search Demo</h1>
+    
+    <div class="search-container">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search for jewelry..." value="necklace">
+        <button onclick="performSearch()" class="search-btn">Search</button>
+    </div>
+    
+    <div id="results" class="results-container">
+        <p>Enter a search term and click Search to see results.</p>
+    </div>
+
+    <script>
+        // Sample jewelry data
+        const sampleProducts = [
+            {
+                id: 1,
+                name: "Gold Necklace with Diamond Pendant",
+                price: 599.99,
+                category: "Necklaces",
+                description: "Beautiful 14k gold necklace with sparkling diamond pendant",
+                tags: ["gold", "necklace", "diamond", "pendant"]
+            },
+            {
+                id: 2,
+                name: "Silver Chain Necklace",
+                price: 149.99,
+                category: "Necklaces",
+                description: "Elegant sterling silver chain necklace",
+                tags: ["silver", "necklace", "chain"]
+            },
+            {
+                id: 3,
+                name: "Pearl Drop Earrings",
+                price: 299.99,
+                category: "Earrings",
+                description: "Classic pearl drop earrings in white gold",
+                tags: ["pearl", "earrings", "white gold", "drop"]
+            },
+            {
+                id: 4,
+                name: "Ruby Ring",
+                price: 899.99,
+                category: "Rings",
+                description: "Stunning ruby ring with diamond accents",
+                tags: ["ruby", "ring", "diamond", "red"]
+            },
+            {
+                id: 5,
+                name: "Gold Bracelet",
+                price: 349.99,
+                category: "Bracelets",
+                description: "Elegant 18k gold bracelet",
+                tags: ["gold", "bracelet", "elegant"]
+            }
+        ];
+
+        function searchProducts(query) {
+            if (!query) return sampleProducts;
+            
+            const lowerQuery = query.toLowerCase();
+            return sampleProducts.filter(product => {
+                const matchesName = product.name.toLowerCase().includes(lowerQuery);
+                const matchesDesc = product.description.toLowerCase().includes(lowerQuery);
+                const matchesCategory = product.category.toLowerCase().includes(lowerQuery);
+                const matchesTags = product.tags.some(tag => tag.toLowerCase().includes(lowerQuery));
+                
+                return matchesName || matchesDesc || matchesCategory || matchesTags;
+            });
+        }
+
+        function displayProducts(products) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (products.length === 0) {
+                resultsDiv.innerHTML = '<p>No products found. Try a different search term.</p>';
+                return;
+            }
+            
+            let html = '<h2>Search Results</h2>';
+            products.forEach(product => {
+                html += `
+                    <div class="product-card">
+                        <div class="product-image">Image</div>
+                        <div class="product-info">
+                            <h3>${product.name}</h3>
+                            <p>${product.description}</p>
+                            <p><strong>Category:</strong> ${product.category}</p>
+                            <p class="product-price">$${product.price}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            const results = searchProducts(query);
+            displayProducts(results);
+        }
+
+        // Test on page load
+        window.onload = function() {
+            console.log('Demo loaded successfully!');
+            console.log('Sample products:', sampleProducts.length);
+        };
+    </script>
+</body>
+</html>

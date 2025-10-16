@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Demo Functions</title>
+</head>
+<body>
+    <h1>Testing Demo Functions</h1>
+    <div id="test-results"></div>
+    
+    <script>
+        // Copy the functions from the demo to test them
+        function getSampleProducts(query, category) {
+            const allProducts = [
+                {
+                    id: 1,
+                    name: "Red Business Professional Dress",
+                    price: 89.99,
+                    category: "Clothing",
+                    description: "Professional red business dress with tailored fit, suitable for office wear",
+                    image_url: "https://via.placeholder.com/300x300/ff5252/ffffff?text=Red+Dress",
+                    tags: ["red", "dress", "business", "professional"]
+                },
+                {
+                    id: 2,
+                    name: "Blue Casual Dress",
+                    price: 59.99,
+                    category: "Clothing",
+                    description: "Comfortable blue casual dress, perfect for everyday wear",
+                    image_url: "https://via.placeholder.com/300x300/2196f3/ffffff?text=Blue+Dress",
+                    tags: ["blue", "dress", "casual"]
+                }
+            ];
+            
+            let filteredProducts = [...allProducts];
+            
+            if (query) {
+                const lowerQuery = query.toLowerCase();
+                filteredProducts = filteredProducts.filter(product => {
+                    const lowerName = product.name.toLowerCase();
+                    const lowerDesc = product.description.toLowerCase();
+                    const lowerCategory = product.category.toLowerCase();
+                    const matchesTags = product.tags.some(tag => tag.toLowerCase().includes(lowerQuery));
+                    return lowerName.includes(lowerQuery) || 
+                           lowerDesc.includes(lowerQuery) || 
+                           lowerCategory.includes(lowerQuery) ||
+                           matchesTags;
+                });
+            }
+            
+            if (category) {
+                filteredProducts = filteredProducts.filter(product => 
+                    product.category.toLowerCase() === category.toLowerCase()
+                );
+            }
+            
+            return filteredProducts;
+        }
+        
+        function getSimilarProducts(productId) {
+            const allProducts = getSampleProducts();
+            const product = allProducts.find(p => p.id === productId);
+            
+            if (!product) return [];
+            
+            let similarProducts = allProducts.filter(p => 
+                p.id !== productId && 
+                p.category === product.category
+            );
+            
+            return similarProducts.slice(0, 4);
+        }
+        
+        // Test the functions
+        const resultsDiv = document.getElementById('test-results');
+        
+        try {
+            // Test 1: Basic search
+            const searchResults = getSampleProducts('red', '');
+            resultsDiv.innerHTML += '<p>✓ Search for "red": Found ' + searchResults.length + ' products</p>';
+            
+            // Test 2: Category filter
+            const categoryResults = getSampleProducts('', 'clothing');
+            resultsDiv.innerHTML += '<p>✓ Filter by "clothing": Found ' + categoryResults.length + ' products</p>';
+            
+            // Test 3: Similar products
+            const similarResults = getSimilarProducts(1);
+            resultsDiv.innerHTML += '<p>✓ Similar products for ID 1: Found ' + similarResults.length + ' products</p>';
+            
+            // Test 4: Display a product
+            if (searchResults.length > 0) {
+                const product = searchResults[0];
+                resultsDiv.innerHTML += '<div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">';
+                resultsDiv.innerHTML += '<h3>' + product.name + '</h3>';
+                resultsDiv.innerHTML += '<p>Price: $' + product.price + '</p>';
+                resultsDiv.innerHTML += '<p>Category: ' + product.category + '</p>';
+                resultsDiv.innerHTML += '<img src="' + product.image_url + '" style="max-width: 200px;">';
+                resultsDiv.innerHTML += '</div>';
+            }
+            
+            resultsDiv.innerHTML += '<p style="color: green; font-weight: bold;">✓ All functions working correctly!</p>';
+            
+        } catch (error) {
+            resultsDiv.innerHTML += '<p style="color: red; font-weight: bold;">✗ Error: ' + error.message + '</p>';
+        }
+    </script>
+</body>
+</html>

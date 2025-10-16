@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Demo</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .debug-info { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .error { color: red; }
+        .success { color: green; }
+        button { padding: 10px; margin: 5px; }
+        input { padding: 8px; margin: 5px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>Debug Demo</h1>
+    
+    <div id="debug-info" class="debug-info">
+        <h3>Debug Information:</h3>
+        <div id="debug-output"></div>
+    </div>
+    
+    <div>
+        <input type="text" id="test-query" placeholder="Enter search query" value="necklace">
+        <br>
+        <button onclick="testSearch()">Test Search</button>
+        <button onclick="testSimilarProducts()">Test Similar Products</button>
+        <button onclick="clearDebug()">Clear Debug</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const debugDiv = document.getElementById('debug-output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : '';
+            debugDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function clearDebug() {
+            document.getElementById('debug-output').innerHTML = '';
+        }
+
+        // Test data
+        const sampleProducts = [
+            {
+                id: 1,
+                name: "Gold Necklace with Diamond Pendant",
+                price: 599.99,
+                category: "Jewelry",
+                description: "Beautiful 14k gold necklace with sparkling diamond pendant",
+                image_url: "https://via.placeholder.com/300x300/ffd700/000000?text=Gold+Necklace",
+                tags: ["gold", "necklace", "pendant", "jewelry"]
+            },
+            {
+                id: 2,
+                name: "Silver Chain Necklace",
+                price: 149.99,
+                category: "Jewelry",
+                description: "Elegant sterling silver chain necklace",
+                image_url: "https://via.placeholder.com/300x300/c0c0c0/000000?text=Silver+Necklace",
+                tags: ["silver", "necklace", "chain", "jewelry"]
+            }
+        ];
+
+        function getSampleProducts(query, category) {
+            log(`getSampleProducts called with query: "${query}", category: "${category}"`);
+            
+            let filteredProducts = [...sampleProducts];
+            
+            if (query) {
+                const lowerQuery = query.toLowerCase();
+                log(`Filtering by query: "${lowerQuery}"`);
+                filteredProducts = filteredProducts.filter(product => {
+                    const lowerName = product.name.toLowerCase();
+                    const lowerDesc = product.description.toLowerCase();
+                    const lowerCategory = product.category.toLowerCase();
+                    const matchesTags = product.tags.some(tag => tag.toLowerCase().includes(lowerQuery));
+                    
+                    const matches = lowerName.includes(lowerQuery) || 
+                                   lowerDesc.includes(lowerQuery) || 
+                                   lowerCategory.includes(lowerQuery) ||
+                                   matchesTags;
+                    
+                    log(`Product "${product.name}": name=${lowerName.includes(lowerQuery)}, desc=${lowerDesc.includes(lowerQuery)}, category=${lowerCategory.includes(lowerQuery)}, tags=${matchesTags}`);
+                    
+                    return matches;
+                });
+            }
+            
+            if (category) {
+                log(`Filtering by category: "${category}"`);
+                filteredProducts = filteredProducts.filter(product => 
+                    product.category.toLowerCase() === category.toLowerCase()
+                );
+            }
+            
+            log(`Returning ${filteredProducts.length} products`);
+            return filteredProducts;
+        }
+
+        function getSimilarProducts(productId) {
+            log(`getSimilarProducts called for product ID: ${productId}`);
+            
+            const product = sampleProducts.find(p => p.id === productId);
+            
+            if (!product) {
+                log(`Product with ID ${productId} not found`, 'error');
+                return [];
+            }
+            
+            log(`Found product: "${product.name}" in category: "${product.category}"`);
+            
+            let similarProducts = sampleProducts.filter(p => 
+                p.id !== productId && 
+                p.category === product.category
+            );
+            
+            log(`Found ${similarProducts.length} similar products in same category`);
+            return similarProducts.slice(0, 4);
+        }
+
+        function testSearch() {
+            log('=== Starting Search Test ===');
+            try {
+                const query = document.getElementById('test-query').value;
+                log(`Testing search for: "${query}"`);
+                
+                const results = getSampleProducts(query, '');
+                log(`Search returned ${results.length} results`, 'success');
+                
+                displayResults(results);
+                
+                if (results.length === 0) {
+                    log('No results found - this might be the issue!', 'error');
+                }
+                
+            } catch (error) {
+                log(`Search test failed: ${error.message}`, 'error');
+                console.error('Search error:', error);
+            }
+            log('=== Search Test Complete ===');
+        }
+
+        function testSimilarProducts() {
+            log('=== Starting Similar Products Test ===');
+            try {
+                const similar = getSimilarProducts(1);
+                log(`Similar products test returned ${similar.length} products`, 'success');
+                
+                if (similar.length === 0) {
+                    log('No similar products found - this might be the issue!', 'error');
+                } else {
+                    similar.forEach(p => log(`Similar product: "${p.name}"`));
+                }
+                
+            } catch (error) {
+                log(`Similar products test failed: ${error.message}`, 'error');
+                console.error('Similar products error:', error);
+            }
+            log('=== Similar Products Test Complete ===');
+        }
+
+        function displayResults(products) {
+            const resultsDiv = document.getElementById('results');
+            
+            if (products.length === 0) {
+                resultsDiv.innerHTML = '<p style="color: red;">No products found!</p>';
+                return;
+            }
+            
+            let html = '<h3>Results:</h3>';
+            products.forEach(product => {
+                html += `
+                    <div style="border: 1px solid #ccc; padding: 10px; margin: 10px 0;">
+                        <h4>${product.name}</h4>
+                        <p>Price: $${product.price}</p>
+                        <p>Category: ${product.category}</p>
+                        <p>Description: ${product.description}</p>
+                        <img src="${product.image_url}" style="max-width: 200px;" alt="${product.name}">
+                    </div>
+                `;
+            });
+            
+            resultsDiv.innerHTML = html;
+        }
+
+        // Test on load
+        window.onload = function() {
+            log('Debug demo loaded successfully');
+            log('Available products: ' + sampleProducts.map(p => p.name).join(', '));
+        };
+    </script>
+</body>
+</html>

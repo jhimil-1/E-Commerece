@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+
+from database import MongoDB
+from bson import ObjectId
+
+db = MongoDB.get_db()
+product_ids = ['68ef7aeb4c29fbc709bc3487', '68ef7aeb4c29fbc709bc348b', '68ef7aeb4c29fbc709bc349a', '68ef7aeb4c29fbc709bc3490', '68ef7aeb4c29fbc709bc347c']
+
+# Also check for jewelry products
+print("\nChecking for jewelry products:")
+jewelry_products = db.products.find({"category": {"$in": ["Jewellery", "Jewelry"]}}).limit(5)
+for product in jewelry_products:
+    print(f"{product.get('name', 'Unknown')} - Category: {product.get('category', 'No category')}")
+
+print("Checking product categories:")
+for pid in product_ids:
+    product = db.products.find_one({'_id': ObjectId(pid)})
+    if product:
+        print(f"{product.get('name', 'Unknown')} - Category: {product.get('category', 'No category')}")
+    else:
+        print(f"Product {pid} not found")
